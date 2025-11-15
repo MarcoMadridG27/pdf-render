@@ -79,13 +79,14 @@ def generate_pdf(req: LessonRequest):
     evaluacion_html = "".join(
         (
             "<div class='box'>"
-            "<b>" + q["enunciado"] + "</b><br>"
-            "Respuesta: " + q["respuesta"] + "<br>"
-            "Criterios: " + q["criterios"] +
+            "<b>" + q.get("enunciado", "---") + "</b><br>"
+            "Respuesta: " + q.get("respuesta", "---") + "<br>"
+            "Criterios: " + q.get("criterios", "---") +
             "</div>"
         )
-        for q in session["recursosAdicionales"]["evaluacionFormativa"]["preguntas"]
+        for q in session.get("recursosAdicionales", {}).get("evaluacionFormativa", {}).get("preguntas", [])
     )
+
 
     # ------------------------------------------------------
     # Actividades diferenciadas
