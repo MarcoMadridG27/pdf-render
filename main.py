@@ -49,13 +49,14 @@ def generate_pdf(req: LessonRequest):
     problemas_html = "".join(
         (
             "<div class='box'>"
-            "<b>Problema:</b> " + p["enunciado"] + "<br>"
-            "<b>Respuesta:</b> " + p["respuesta"] + "<br>"
-            "<b>Criterios:</b> " + p["criterios"] +
+            "<b>Problema:</b> " + p.get("enunciado", "---") + "<br>"
+            "<b>Respuesta:</b> " + p.get("respuesta", "---") + "<br>"
+            "<b>Criterios:</b> " + p.get("criterios", "---") +
             "</div>"
         )
-        for p in session["recursosAdicionales"]["problemasYEjercicios"]
+        for p in session.get("recursosAdicionales", {}).get("problemasYEjercicios", [])
     )
+
 
     # ------------------------------------------------------
     # Actividad de activación
