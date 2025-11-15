@@ -64,13 +64,14 @@ def generate_pdf(req: LessonRequest):
     activacion_html = "".join(
         (
             "<div class='box'>"
-            "<b>" + a["nombre"] + "</b><br>"
-            + a["descripcion"] + "<br>"
-            "<i>Duración: " + a["duracion"] + "</i>"
+            "<b>" + a.get("nombre", "---") + "</b><br>"
+            + a.get("descripcion", "---") + "<br>"
+            "<i>Duración: " + a.get("duracion", "---") + "</i>"
             "</div>"
         )
-        for a in session["recursosAdicionales"]["actividadDeActivacion"]
+        for a in session.get("recursosAdicionales", {}).get("actividadDeActivacion", [])
     )
+
 
     # ------------------------------------------------------
     # Evaluación formativa
