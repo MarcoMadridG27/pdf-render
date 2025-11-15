@@ -1,8 +1,9 @@
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Response, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from playwright.sync_api import sync_playwright
 import json
+import markdown
 
 app = FastAPI()
 
@@ -27,10 +28,122 @@ def generate_pdf(req: LessonRequest):
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="utf-8">
+<meta charset='utf-8'>
 <title>Sesión de Aprendizaje</title>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href='https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap' rel='stylesheet'>
+<style>
+    body {{ font-family: 'Inter', 'Segoe UI', sans-serif; background: #f6f8fa; color: #222; }}
+    .container {{ max-width: 900px; margin: 30px auto; background: #fff; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.12); padding: 40px 50px; }}
+    h1, h2, h3 {{ font-family: 'Poppins', sans-serif; }}
+    h1 {{ font-size: 2.2em; margin-bottom: 0.2em; }}
+    h2 {{ font-size: 1.4em; margin-top: 2em; margin-bottom: 0.7em; border-bottom: 2px solid #667eea; padding-bottom: 0.2em; }}
+    h3 {{ font-size: 1.1em; margin-top: 1.2em; margin-bottom: 0.5em; color: #764ba2; }}
+    .section {{ margin-bottom: 2.2em; }}
+    .label {{ font-weight: 600; color: #667eea; font-size: 0.98em; margin-top: 0.7em; }}
+    ul, ol {{ margin-left: 1.5em; }}
+    .box {{ background: #f5f7fa; border-left: 4px solid #667eea; border-radius: 7px; padding: 15px 18px; margin-bottom: 1em; }}
+    .tag {{ display: inline-block; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; border-radius: 16px; padding: 5px 15px; margin: 2px 6px 2px 0; font-size: 0.95em; }}
+    .info-table {{ width: 100%; border-collapse: collapse; margin-bottom: 1.5em; }}
+    .info-table td, .info-table th {{ border: 1px solid #e2e8f0; padding: 7px 12px; }}
+    .info-table th {{ background: #f0f4ff; color: #667eea; font-weight: 600; }}
+    .footer {{ text-align: center; color: #888; font-size: 0.95em; margin-top: 2.5em; }}
+</style>
+</head>
+<body>
+<div class='container'>
+    <h1>📝 SESIÓN DE APRENDIZAJE</h1>
+    <div class='section'>
+        <h2>📌 Título de la sesión</h2>
+        <div class='box'>{session.get('datosGenerales',{}).get('titulo','')}</div>
+        <div class='label'>Docente</div>
+        <div class='box'>{session.get('datosGenerales',{}).get('docente','')}</div>
+        <div class='label'>Grado y sección</div>
+        <div class='box'>{session.get('datosGenerales',{}).get('grado','')} {session.get('datosGenerales',{}).get('seccion','')}</div>
+        <div class='label'>Fecha</div>
+        <div class='box'>{session.get('datosGenerales',{}).get('fecha','')}</div>
+    </div>
+    <div class='section'>
+        <h2>🎯 Competencias y capacidades</h2>
+        <div class='label'>Competencia</div>
+        <div class='box'>{session.get('competenciasSeleccionadas',[''])[0]}</div>
+        <div class='label'>Capacidades</div>
+        <ul>
+            {''.join(f'<li>{c}</li>' for c in session.get('capacidades',[]))}
+        </ul>
+    </div>
+    <div class='section'>
+        <h2>🧩 Criterios de evaluación</h2>
+        <ul>
+            {''.join(f'<li>{crit.strip()}</li>' for crit in str(session.get('criteriosEvaluacion','')).split(' 1. ')[-1].split(' 2. ') if crit)}
+        </ul>
+    </div>
+    <div class='section'>
+        <h2>📄 Evidencias de aprendizaje</h2>
+        <ul>
+            {''.join(f'<li>{ev.strip()}</li>' for ev in str(session.get('evidenciasAprendizaje','')).split(' 1. ')[-1].split(' 2. ') if ev)}
+        </ul>
+    </div>
+    <div class='section'>
+        <h2>🎯 Propósito de la sesión</h2>
+        <div class='box'>{session.get('propositoSesion','')}</div>
+    </div>
+    <div class='section'>
+        <h2>✏️ Materiales para el desarrollo de la sesión</h2>
+        <div class='label'>Materiales para la sesión</div>
+        <div class='box'>{session.get('materialesDisponibles','')}</div>
+        <div class='label'>Materiales didácticos sugeridos</div>
+        <ul>
+            {''.join(f'<li>{m}</li>' for m in session.get('materialesDidacticosSugeridos',[]))}
+        </ul>
+    </div>
+    <div class='section'>
+        <h2>⏱️ MOMENTOS DE LA SESIÓN</h2>
+        <div class='label'>Distribución temporal</div>
+        <div class='box'>{session.get('distribucionHoras','')}</div>
+        <h3>🔹 Inicio</h3>
+        <div class='box'>{session.get('secuenciaMetodologica',{}).get('inicio','')}</div>
+        <h3>🔹 Desarrollo</h3>
+        <div class='box'>{session.get('secuenciaMetodologica',{}).get('desarrollo','')}</div>
+        <h3>🔹 Cierre</h3>
+        <div class='box'>{session.get('secuenciaMetodologica',{}).get('cierre','')}</div>
+    </div>
+    <div class='section'>
+        <h2>🔄 Procesos Didácticos</h2>
+        <ul>
+            {''.join(f'<li>{p}</li>' for p in session.get('procesosDidacticos',[]))}
+        </ul>
+    </div>
+    <div class='section'>
+        <h2>✨ Actividades Contextualizadas</h2>
+        <ul>
+            {''.join(f'<li>{a}</li>' for a in session.get('actividadesContextualizadas',[]))}
+        </ul>
+    </div>
+    <div class='footer'>Documento generado automáticamente | Sesión de Aprendizaje</div>
+</div>
+</body>
+</html>
+"""
 
+    # ✅ Convertir a PDF con Playwright
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(html)
+        pdf_bytes = page.pdf(format="A4")
+        browser.close()
+
+    return Response(content=pdf_bytes, media_type="application/pdf")
+
+
+def _wrap_with_template(content_html: str, title: str = "Sesión de Aprendizaje") -> str:
+    # Reutiliza los estilos definidos en la plantilla principal y coloca el HTML convertido
+    return f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>{title}</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
     * {{
         margin: 0;
@@ -48,416 +161,92 @@ def generate_pdf(req: LessonRequest):
 
     .container {{
         max-width: 1100px;
-        margin: 0 auto;
+        margin: 40px auto;
         background: white;
         box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        border-radius: 12px;
+        overflow: hidden;
     }}
 
     .header {{
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
-        padding: 50px 60px;
-        position: relative;
-        overflow: hidden;
-    }}
-
-    .header::before {{
-        content: '';
-        position: absolute;
-        top: -50%;
-        right: -20%;
-        width: 400px;
-        height: 400px;
-        background: rgba(255,255,255,0.1);
-        border-radius: 50%;
-    }}
-
-    .header::after {{
-        content: '';
-        position: absolute;
-        bottom: -30%;
-        left: -10%;
-        width: 300px;
-        height: 300px;
-        background: rgba(255,255,255,0.08);
-        border-radius: 50%;
+        padding: 30px 40px;
     }}
 
     h1 {{
         font-family: 'Poppins', sans-serif;
-        font-size: 42px;
+        font-size: 32px;
         font-weight: 700;
-        margin-bottom: 15px;
-        position: relative;
-        z-index: 1;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
-        letter-spacing: -0.5px;
-    }}
-
-    .subtitle {{
-        font-size: 18px;
-        font-weight: 300;
-        opacity: 0.95;
-        position: relative;
-        z-index: 1;
-        font-style: italic;
+        margin-bottom: 6px;
     }}
 
     .content {{
-        padding: 50px 60px;
-    }}
-
-    .info-grid {{
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 25px;
-        margin-bottom: 40px;
-    }}
-
-    .info-card {{
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-        border-radius: 15px;
-        padding: 25px;
-        box-shadow: 0 5px 15px rgba(0,0,0,0.08);
-        border: 1px solid rgba(102, 126, 234, 0.1);
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
-    }}
-
-    .info-card:hover {{
-        transform: translateY(-3px);
-        box-shadow: 0 8px 25px rgba(0,0,0,0.12);
-    }}
-
-    .info-label {{
-        font-family: 'Poppins', sans-serif;
-        font-size: 13px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        color: #667eea;
-        margin-bottom: 10px;
-        display: flex;
-        align-items: center;
-    }}
-
-    .info-label::before {{
-        content: '';
-        width: 4px;
-        height: 16px;
-        background: #667eea;
-        margin-right: 10px;
-        border-radius: 2px;
-    }}
-
-    .info-value {{
-        font-size: 15px;
+        padding: 30px 40px;
         color: #2d3748;
-        font-weight: 400;
-        line-height: 1.6;
-    }}
-
-    .section {{
-        margin-bottom: 45px;
-        page-break-inside: avoid;
-    }}
-
-    h2 {{
-        font-family: 'Poppins', sans-serif;
-        font-size: 28px;
-        font-weight: 600;
-        color: #2d3748;
-        margin-bottom: 20px;
-        padding-bottom: 12px;
-        border-bottom: 3px solid;
-        border-image: linear-gradient(90deg, #667eea, #764ba2) 1;
-        display: flex;
-        align-items: center;
-    }}
-
-    h2::before {{
-        content: '';
-        width: 8px;
-        height: 35px;
-        background: linear-gradient(135deg, #667eea, #764ba2);
-        margin-right: 15px;
-        border-radius: 4px;
-    }}
-
-    h3 {{
-        font-family: 'Poppins', sans-serif;
-        font-size: 20px;
-        font-weight: 600;
-        color: #4a5568;
-        margin-top: 30px;
-        margin-bottom: 15px;
-        display: flex;
-        align-items: center;
-    }}
-
-    h3::before {{
-        content: '◆';
-        color: #667eea;
-        margin-right: 12px;
-        font-size: 16px;
-    }}
-
-    .box {{
-        background: #ffffff;
-        border: 2px solid #e2e8f0;
-        border-left: 5px solid #667eea;
-        padding: 22px 25px;
-        margin-bottom: 20px;
-        border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        font-size: 15px;
-        line-height: 1.8;
-        transition: all 0.3s ease;
-    }}
-
-    .box:hover {{
-        border-left-color: #764ba2;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    }}
-
-    .tag-container {{
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px;
-    }}
-
-    .tag {{
-        display: inline-flex;
-        align-items: center;
-        background: linear-gradient(135deg, #667eea, #764ba2);
-        color: white;
-        padding: 10px 20px;
-        border-radius: 25px;
-        font-size: 14px;
-        font-weight: 500;
-        box-shadow: 0 4px 10px rgba(102, 126, 234, 0.3);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }}
-
-    .tag:hover {{
-        transform: translateY(-2px);
-        box-shadow: 0 6px 15px rgba(102, 126, 234, 0.4);
-    }}
-
-    .tag::before {{
-        content: '✓';
-        margin-right: 8px;
-        font-weight: bold;
-    }}
-
-    ul {{
-        margin-left: 25px;
-        margin-top: 15px;
-    }}
-
-    ul li {{
-        margin-bottom: 12px;
-        padding-left: 15px;
-        position: relative;
-        font-size: 15px;
-        line-height: 1.7;
-        color: #2d3748;
-    }}
-
-    ul li::before {{
-        content: '▸';
-        position: absolute;
-        left: -10px;
-        color: #667eea;
-        font-weight: bold;
-        font-size: 18px;
-    }}
-
-    .highlight-box {{
-        background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
-        border-left: 5px solid #fdcb6e;
-        padding: 20px 25px;
-        border-radius: 12px;
-        margin: 20px 0;
-        box-shadow: 0 4px 12px rgba(253, 203, 110, 0.3);
-    }}
-
-    .duration-badge {{
-        display: inline-flex;
-        align-items: center;
-        background: linear-gradient(135deg, #00b894, #00cec9);
-        color: white;
-        padding: 12px 25px;
-        border-radius: 30px;
-        font-size: 16px;
-        font-weight: 600;
-        box-shadow: 0 4px 12px rgba(0, 184, 148, 0.3);
-    }}
-
-    .duration-badge::before {{
-        content: '⏱';
-        margin-right: 10px;
-        font-size: 20px;
     }}
 
     .footer {{
         background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
         color: white;
-        padding: 30px 60px;
+        padding: 20px 40px;
         text-align: center;
-        font-size: 14px;
+        font-size: 13px;
         opacity: 0.9;
     }}
 
-    .metodologia-container {{
-        background: linear-gradient(135deg, #f8f9ff 0%, #e8eaff 100%);
-        border-radius: 15px;
-        padding: 30px;
-        margin-top: 20px;
-        border: 2px solid #667eea;
-    }}
-
-    .fase-box {{
-        background: white;
-        border-radius: 10px;
-        padding: 20px;
-        margin-bottom: 20px;
-        box-shadow: 0 3px 10px rgba(0,0,0,0.08);
-        border-left: 4px solid #667eea;
-    }}
-
-    .fase-box:last-child {{
-        margin-bottom: 0;
-    }}
+    img {{ max-width: 100%; }}
+    pre {{ background: #f4f4f4; padding: 12px; border-radius: 6px; overflow: auto; }}
+    table {{ border-collapse: collapse; width: 100%; }}
+    table, th, td {{ border: 1px solid #ddd; padding: 8px; }}
 
     @media print {{
-        body {{
-            background: white;
-        }}
-        .container {{
-            box-shadow: none;
-        }}
+        body {{ background: white; }}
+        .container {{ box-shadow: none; }}
     }}
 </style>
-
 </head>
 <body>
-
 <div class="container">
     <div class="header">
-        <h1>📚 Sesión de Aprendizaje</h1>
-        <div class="subtitle">Planificación Pedagógica Detallada</div>
+        <h1>📚 {title}</h1>
     </div>
-
     <div class="content">
-        <!-- Sección: Información General -->
-        <div class="section">
-            <h2>📋 Información General</h2>
-            
-            <div class="info-grid">
-                <div class="info-card">
-                    <div class="info-label">Tema de la Sesión</div>
-                    <div class="info-value">{session.get("tema", "")}</div>
-                </div>
-                
-                <div class="info-card">
-                    <div class="info-label">Ciclo Educativo</div>
-                    <div class="info-value">{session.get("ciclo", "")}</div>
-                </div>
-            </div>
-
-            <div class="info-card" style="margin-bottom: 25px;">
-                <div class="info-label">Contexto del Aula</div>
-                <div class="info-value">{session.get("contexto", "")}</div>
-            </div>
-
-            <div class="highlight-box">
-                <div class="info-label" style="color: #d63031; margin-bottom: 10px;">⏱ Duración de la Sesión</div>
-                <span class="duration-badge">{session.get("horasClase", 2)} horas pedagógicas</span>
-            </div>
-        </div>
-
-        <!-- Sección: Competencias -->
-        <div class="section">
-            <h2>🎯 Competencias y Capacidades</h2>
-            
-            <div class="info-label" style="margin-bottom: 15px;">Competencias Seleccionadas</div>
-            <div class="tag-container">
-                {''.join(f'<span class="tag">{c}</span>' for c in session.get("competenciasSeleccionadas", []))}
-            </div>
-
-            <div style="margin-top: 25px;">
-                <div class="info-label">Descripción de la Competencia</div>
-                <div class="box">{session.get("competenciaDescripcion", "")}</div>
-            </div>
-        </div>
-
-        <!-- Sección: Secuencia Metodológica -->
-        <div class="section">
-            <h2>📖 Secuencia Metodológica</h2>
-            
-            <div class="metodologia-container">
-                <h3>🚀 Inicio</h3>
-                <div class="fase-box">{session["secuenciaMetodologica"]["inicio"]}</div>
-
-                <h3>⚙️ Desarrollo</h3>
-                <div class="fase-box">{session["secuenciaMetodologica"]["desarrollo"]}</div>
-
-                <h3>✅ Cierre</h3>
-                <div class="fase-box">{session["secuenciaMetodologica"]["cierre"]}</div>
-            </div>
-
-            <div class="highlight-box" style="margin-top: 25px;">
-                <div class="info-label" style="color: #d63031;">📊 Distribución Temporal</div>
-                <div class="info-value" style="font-weight: 500; font-size: 16px; margin-top: 10px;">{session.get("distribucionHoras", "")}</div>
-            </div>
-        </div>
-
-        <!-- Sección: Procesos Didácticos -->
-        <div class="section">
-            <h2>🔄 Procesos Didácticos</h2>
-            <div class="box">
-                <ul style="margin: 0;">
-                    {''.join(f'<li>{p}</li>' for p in session.get("procesosDidacticos", []))}
-                </ul>
-            </div>
-        </div>
-
-        <!-- Sección: Materiales -->
-        <div class="section">
-            <h2>🎨 Recursos y Materiales</h2>
-            
-            <div class="info-label">Materiales Disponibles</div>
-            <div class="box">{session.get("materialesDisponibles", "")}</div>
-
-            <div class="info-label" style="margin-top: 25px;">Materiales Didácticos Sugeridos</div>
-            <div class="box">
-                <ul style="margin: 0;">
-                    {''.join(f'<li>{m}</li>' for m in session.get("materialesDidacticosSugeridos", []))}
-                </ul>
-            </div>
-        </div>
-
-        <!-- Sección: Actividades -->
-        <div class="section">
-            <h2>✨ Actividades Contextualizadas</h2>
-            <div class="box">
-                <ul style="margin: 0;">
-                    {''.join(f'<li>{a}</li>' for a in session.get("actividadesContextualizadas", []))}
-                </ul>
-            </div>
-        </div>
+        {content_html}
     </div>
-
     <div class="footer">
-        <p>📄 Documento generado automáticamente | Sesión de Aprendizaje {session.get("ciclo", "")}</p>
+        <p>📄 Documento generado automáticamente</p>
     </div>
 </div>
-
 </body>
 </html>
 """
 
-    # ✅ Convertir a PDF con Playwright
+
+@app.post("/generate-pdf-from-md")
+async def generate_pdf_from_md(file: UploadFile = File(None), markdown_text: str = Form(None)):
+    """Genera un PDF a partir de un archivo .md subido o de texto Markdown en el formulario.
+
+    - Envíe `file` como multipart/form-data con el archivo .md, o
+    - Envíe `markdown_text` como campo de formulario con el contenido Markdown.
+    """
+
+    if file is not None:
+        raw = await file.read()
+        try:
+            md = raw.decode('utf-8')
+        except Exception:
+            md = raw.decode('latin-1')
+    elif markdown_text:
+        md = markdown_text
+    else:
+        return {"error": "No se proporcionó ningún Markdown (archivo o campo 'markdown_text')."}
+
+    # Convertir Markdown a HTML (extensiones útiles)
+    content_html = markdown.markdown(md, extensions=["fenced_code", "tables", "toc"])
+
+    html = _wrap_with_template(content_html)
+
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page()
