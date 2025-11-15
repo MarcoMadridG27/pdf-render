@@ -98,18 +98,20 @@ def generate_pdf(req: LessonRequest):
     # ------------------------------------------------------
     # Juego Didáctico
     # ------------------------------------------------------
-    juego = session["recursosAdicionales"]["juegoDidactico"]
+    juego = session.get("recursosAdicionales", {}).get("juegoDidactico", {})
+
     juego_html = (
         "<div class='box'>"
-        "<b>" + juego["nombre"] + "</b><br><br>"
-        + juego["descripcion"] + "<br><br>"
-        "<b>Materiales:</b> " + juego["materiales"] + "<br>"
-        "<b>Instrucciones:</b> " + juego["instrucciones"] + "<br><br>"
+        "<b>" + juego.get("nombre", "---") + "</b><br><br>"
+        + juego.get("descripcion", "---") + "<br><br>"
+        "<b>Materiales:</b> " + juego.get("materiales", "---") + "<br>"
+        "<b>Instrucciones:</b> " + juego.get("instrucciones", "---") + "<br><br>"
         "<b>Niveles de dificultad:</b>"
-        "<ul>" + "".join("<li>" + n + "</li>" for n in juego["nivelesDificultad"]) + "</ul>"
-        "<b>Reflexión:</b> " + juego["reflexion"] +
+        "<ul>" + "".join("<li>" + n + "</li>" for n in juego.get("nivelesDificultad", [])) + "</ul>"
+        "<b>Reflexión:</b> " + juego.get("reflexion", "---")
         "</div>"
     )
+
 
     # ------------------------------------------------------
     # HTML PRINCIPAL
