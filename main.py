@@ -1,8 +1,13 @@
-from fastapi import FastAPI, Response, UploadFile, File, Form
+from fastapi import FastAPI, Response, Request, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from playwright.sync_api import sync_playwright
 import markdown
+import os
+import tempfile
+import traceback
+from sesion_template import generate_sesion
 
 app = FastAPI()
 
@@ -12,286 +17,117 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# ---------------------------------------------------------
+# Handler global: garantiza CORS headers incluso en errores 500
+# ---------------------------------------------------------
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    tb = traceback.format_exc()
+    print(f"[ERROR 500]\n{tb}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc), "traceback": tb},
+        headers={"Access-Control-Allow-Origin": "*"},
+    )
+
 class LessonRequest(BaseModel):
     data: dict
 
+def map_data(data: dict) -> dict:
+    """Mapea los datos del JSON antiguo al nuevo formato si es necesario."""
+    new_data = dict(data)
+    
+    if "datosGenerales" in data:
+        dg = data["datosGenerales"]
+        new_data["ie"] = dg.get("ie", new_data.get("ie", ""))
+        new_data["docente"] = dg.get("docente", new_data.get("docente", ""))
+        new_data["grado"] = dg.get("grado", new_data.get("grado", ""))
+        new_data["seccion"] = dg.get("seccion", new_data.get("seccion", ""))
+        new_data["fecha"] = dg.get("fecha", new_data.get("fecha", ""))
+        new_data["titulo"] = dg.get("titulo", new_data.get("titulo", ""))
+
+    if "tema" in data and not new_data.get("titulo"):
+        new_data["titulo"] = data["tema"]
+        
+    if "ciclo" in data and not new_data.get("ciclo"):
+        new_data["ciclo"] = data["ciclo"]
+        
+    if "horasClase" in data and not new_data.get("duracion"):
+        new_data["duracion"] = data["horasClase"]
+        
+    if "propositoSesion" in data and not new_data.get("proposito_aprendizaje"):
+        new_data["proposito_aprendizaje"] = data["propositoSesion"]
+        
+    if "enfoqueTransversal" in data and not new_data.get("enfoque_transversal"):
+        new_data["enfoque_transversal"] = data["enfoqueTransversal"]
+        
+    if "competenciasSeleccionadas" in data and not new_data.get("competencias"):
+        new_data["competencias"] = [{"competencia": c, "capacidades": data.get("capacidades", [])} for c in data["competenciasSeleccionadas"]]
+        
+    if "criteriosEvaluacion" in data and isinstance(data["criteriosEvaluacion"], str) and not new_data.get("criterios_evaluacion"):
+        import re
+        criterios = re.split(r'\s*\d+\.\s*', data["criteriosEvaluacion"])
+        new_data["criterios_evaluacion"] = [c.strip() for c in criterios if c.strip()]
+        
+    if "evidenciasAprendizaje" in data and isinstance(data["evidenciasAprendizaje"], str) and not new_data.get("evidencia"):
+        new_data["evidencia"] = data["evidenciasAprendizaje"]
+        
+    if "materialesDidacticosSugeridos" in data and not new_data.get("recursos_materiales"):
+        new_data["recursos_materiales"] = data["materialesDidacticosSugeridos"]
+        
+    if "secuenciaMetodologica" in data:
+        sm = data["secuenciaMetodologica"]
+        if "inicio" in sm and isinstance(sm["inicio"], str) and not new_data.get("inicio"):
+            new_data["inicio"] = [{"tipo": "texto", "texto": sm["inicio"]}]
+        if "desarrollo" in sm and isinstance(sm["desarrollo"], str) and not new_data.get("desarrollo"):
+            new_data["desarrollo"] = [{"tipo": "texto", "texto": sm["desarrollo"]}]
+        if "cierre" in sm and isinstance(sm["cierre"], str) and not new_data.get("cierre"):
+            new_data["cierre"] = [{"tipo": "texto", "texto": sm["cierre"]}]
+
+    if "recursosAdicionales" in data:
+        ra = data["recursosAdicionales"]
+        if "instrumentoEvaluacionGenerado" in ra and not new_data.get("instrumento_evaluacion_generado"):
+            new_data["instrumento_evaluacion_generado"] = ra["instrumentoEvaluacionGenerado"]
+
+    return new_data
 
 # =========================================================
 # GENERAR PDF PRINCIPAL
 # =========================================================
 @app.post("/generate-pdf")
 def generate_pdf(req: LessonRequest):
-
-    session = req.data
-
-    # ------------------------------------------------------
-    # Fichas de Trabajo
-    # ------------------------------------------------------
-    fichas_html = "".join(
-        (
-            "<div class='label'>" + f["titulo"] + "</div>"
-            "<div class='box'>" + f["instrucciones"] + "</div>"
-            "<ul>"
-            + "".join("<li>" + e + "</li>" for e in f["ejercicios"])
-            + "</ul>"
+    # Map the incoming data in case it's using the old format
+    mapped_data = map_data(req.data)
+    
+    # Generate random temp file
+    fd, output_path = tempfile.mkstemp(suffix=".pdf")
+    os.close(fd)
+    
+    try:
+        # Usar la nueva plantilla de sesión
+        generate_sesion(mapped_data, output_path)
+        
+        with open(output_path, "rb") as f:
+            pdf_bytes = f.read()
+    except Exception as e:
+        tb = traceback.format_exc()
+        print(f"[generate_pdf ERROR]\n{tb}")
+        if os.path.exists(output_path):
+            os.remove(output_path)
+        return JSONResponse(
+            status_code=500,
+            content={"detail": str(e), "traceback": tb},
+            headers={"Access-Control-Allow-Origin": "*"},
         )
-        for f in session["recursosAdicionales"]["fichasDeTrabajo"]
-    )
-
-    # ------------------------------------------------------
-    # Problemas y ejercicios
-    # ------------------------------------------------------
-    problemas_html = "".join(
-        (
-            "<div class='box'>"
-            "<b>Problema:</b> " + p.get("enunciado", "---") + "<br>"
-            "<b>Respuesta:</b> " + p.get("respuesta", "---") + "<br>"
-            "<b>Criterios:</b> " + p.get("criterios", "---") +
-            "</div>"
-        )
-        for p in session.get("recursosAdicionales", {}).get("problemasYEjercicios", [])
-    )
-
-
-    # ------------------------------------------------------
-    # Actividad de activación
-    # ------------------------------------------------------
-    activacion_html = "".join(
-        (
-            "<div class='box'>"
-            "<b>" + a.get("nombre", "---") + "</b><br>"
-            + a.get("descripcion", "---") + "<br>"
-            "<i>Duración: " + a.get("duracion", "---") + "</i>"
-            "</div>"
-        )
-        for a in session.get("recursosAdicionales", {}).get("actividadDeActivacion", [])
-    )
-
-
-    # ------------------------------------------------------
-    # Evaluación formativa
-    # ------------------------------------------------------
-    evaluacion_html = "".join(
-        (
-            "<div class='box'>"
-            "<b>" + q.get("enunciado", "---") + "</b><br>"
-            "Respuesta: " + q.get("respuesta", "---") + "<br>"
-            "Criterios: " + q.get("criterios", "---") +
-            "</div>"
-        )
-        for q in session.get("recursosAdicionales", {}).get("evaluacionFormativa", {}).get("preguntas", [])
-    )
-
-
-    # ------------------------------------------------------
-    # Actividades diferenciadas
-    # ------------------------------------------------------
-    refuerzo_html = "".join("<li>" + r + "</li>" for r in session["recursosAdicionales"]["actividadesDiferenciadas"]["refuerzo"])
-    consolidacion_html = "".join("<li>" + c + "</li>" for c in session["recursosAdicionales"]["actividadesDiferenciadas"]["consolidacion"])
-    profundizacion_html = "".join("<li>" + p + "</li>" for p in session["recursosAdicionales"]["actividadesDiferenciadas"]["profundizacion"])
-
-    # ------------------------------------------------------
-    # Juego Didáctico
-    # ------------------------------------------------------
-    juego = session.get("recursosAdicionales", {}).get("juegoDidactico", {})
-
-    juego_html = (
-        "<div class='box'>"
-        "<b>" + juego.get("nombre", "---") + "</b><br><br>"
-        + juego.get("descripcion", "---") + "<br><br>"
-        "<b>Materiales:</b> " + juego.get("materiales", "---") + "<br>"
-        "<b>Instrucciones:</b> " + juego.get("instrucciones", "---") + "<br><br>"
-        "<b>Niveles de dificultad:</b>"
-        "<ul>" + "".join("<li>" + n + "</li>" for n in juego.get("nivelesDificultad", [])) + "</ul>"
-        "<b>Reflexión:</b> " + juego.get("reflexion", "---")
-        "</div>"
-    )
-
-
-    # ------------------------------------------------------
-    # HTML PRINCIPAL
-    # ------------------------------------------------------
-    html = f"""
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset='utf-8'>
-<title>Sesión de Aprendizaje</title>
-<link href='https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap' rel='stylesheet'>
-<style>
-    body {{ font-family: 'Inter', 'Segoe UI', sans-serif; background: #f6f8fa; color: #222; }}
-    .container {{ max-width: 900px; margin: 30px auto; background: #fff; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.12); padding: 40px 50px; }}
-    h1, h2, h3 {{ font-family: 'Poppins', sans-serif; }}
-    h1 {{ font-size: 2.2em; margin-bottom: 0.2em; }}
-    h2 {{ font-size: 1.4em; margin-top: 2em; margin-bottom: 0.7em; border-bottom: 2px solid #667eea; padding-bottom: 0.2em; }}
-    h3 {{ font-size: 1.1em; margin-top: 1.2em; margin-bottom: 0.5em; color: #764ba2; }}
-    .section {{ margin-bottom: 2.2em; }}
-    .label {{ font-weight: 600; color: #667eea; font-size: 0.98em; margin-top: 0.7em; }}
-    ul, ol {{ margin-left: 1.5em; }}
-    .box {{ background: #f5f7fa; border-left: 4px solid #667eea; border-radius: 7px; padding: 15px 18px; margin-bottom: 1em; }}
-    .footer {{ text-align: center; color: #888; font-size: 0.95em; margin-top: 2.5em; }}
-</style>
-</head>
-<body>
-
-<div class='container'>
-    <h1>📝 SESIÓN DE APRENDIZAJE</h1>
-
-    <div class='section'>
-        <h2>📌 Datos Generales</h2>
-        <div class='label'>Título</div>
-        <div class='box'>{session['datosGenerales']['titulo']}</div>
-        <div class='label'>Docente</div>
-        <div class='box'>{session['datosGenerales']['docente']}</div>
-        <div class='label'>Grado y sección</div>
-        <div class='box'>{session['datosGenerales']['grado']} {session['datosGenerales']['seccion']}</div>
-        <div class='label'>Fecha</div>
-        <div class='box'>{session['datosGenerales']['fecha']}</div>
-
-        <div class='label'>Tema</div>
-        <div class='box'>{session['tema']}</div>
-
-        <div class='label'>Ciclo</div>
-        <div class='box'>{session['ciclo']}</div>
-
-        <div class='label'>Contexto</div>
-        <div class='box'>{session['contexto']}</div>
-
-        <div class='label'>Horas de clase</div>
-        <div class='box'>{session['horasClase']}</div>
-    </div>
-
-    <div class='section'>
-        <h2>🎯 Competencias</h2>
-        <div class='label'>Competencias seleccionadas</div>
-        <ul>
-            {''.join('<li>' + c + '</li>' for c in session['competenciasSeleccionadas'])}
-        </ul>
-        <div class='label'>Capacidades</div>
-        <ul>
-            {''.join('<li>' + c + '</li>' for c in session['capacidades'])}
-        </ul>
-        <div class='label'>Enfoque transversal</div>
-        <div class='box'>{session['enfoqueTransversal']}</div>
-        <div class='label'>Competencia transversal</div>
-        <div class='box'>{session['competenciaTransversal']}</div>
-        <div class='label'>Descripción</div>
-        <div class='box'>{session['competenciaDescripcion']}</div>
-    </div>
-
-    <div class='section'>
-        <h2>🧩 Criterios de evaluación</h2>
-        <ul>
-            {''.join('<li>' + x.strip() + '</li>' for x in session['criteriosEvaluacion'].split(' 2. '))}
-        </ul>
-    </div>
-
-    <div class='section'>
-        <h2>📄 Evidencias de aprendizaje</h2>
-        <ul>
-            {''.join('<li>' + x.strip() + '</li>' for x in session['evidenciasAprendizaje'].split(' 2. '))}
-        </ul>
-    </div>
-
-    <div class='section'>
-        <h2>🎯 Propósito de la sesión</h2>
-        <div class='box'>{session['propositoSesion']}</div>
-    </div>
-
-    <div class='section'>
-        <h2>✏️ Materiales</h2>
-        <div class='label'>Materiales disponibles</div>
-        <div class='box'>{session['materialesDisponibles']}</div>
-        <div class='label'>Materiales didácticos sugeridos</div>
-        <ul>
-            {''.join('<li>' + m + '</li>' for m in session['materialesDidacticosSugeridos'])}
-        </ul>
-    </div>
-
-    <div class='section'>
-        <h2>⏱️ Momentos de la sesión</h2>
-        <div class='box'>{session['distribucionHoras']}</div>
-        <h3>Inicio</h3>
-        <div class='box'>{session['secuenciaMetodologica']['inicio']}</div>
-        <h3>Desarrollo</h3>
-        <div class='box'>{session['secuenciaMetodologica']['desarrollo']}</div>
-        <h3>Cierre</h3>
-        <div class='box'>{session['secuenciaMetodologica']['cierre']}</div>
-    </div>
-
-    <div class='section'>
-        <h2>🔄 Procesos Didácticos</h2>
-        <ul>{''.join('<li>' + p + '</li>' for p in session['procesosDidacticos'])}</ul>
-    </div>
-
-    <div class='section'>
-        <h2>✨ Actividades Contextualizadas</h2>
-        <ul>{''.join('<li>' + a + '</li>' for a in session['actividadesContextualizadas'])}</ul>
-    </div>
-
-    <div class='section'>
-        <h2>📚 Recursos Adicionales</h2>
-        <h3>Fichas de Trabajo</h3>
-        {fichas_html}
-
-        <h3>Problemas y Ejercicios</h3>
-        {problemas_html}
-
-        <h3>Juego Didáctico</h3>
-        {juego_html}
-    </div>
-
-    <div class='section'>
-        <h2>⚡ Actividades de Activación</h2>
-        {activacion_html}
-    </div>
-
-    <div class='section'>
-        <h2>📝 Evaluación Formativa</h2>
-        {evaluacion_html}
-        <div class='label'>Criterios Generales</div>
-        <div class='box'>{session['recursosAdicionales']['evaluacionFormativa']['criteriosGenerales']}</div>
-    </div>
-
-    <div class='section'>
-        <h2>🎓 Actividades Diferenciadas</h2>
-        <h3>Refuerzo</h3>
-        <ul>{refuerzo_html}</ul>
-
-        <h3>Consolidación</h3>
-        <ul>{consolidacion_html}</ul>
-
-        <h3>Profundización</h3>
-        <ul>{profundizacion_html}</ul>
-    </div>
-
-    <div class='section'>
-        <h2>📢 Comunicado para Padres</h2>
-        <div class='box'>{session['recursosAdicionales']['comunicadoParaPadres']}</div>
-    </div>
-
-    <div class='footer'>Documento generado automáticamente | Sesión de Aprendizaje</div>
-
-</div>
-</body>
-</html>
-"""
-
-    # ------------------------------------------------------
-    # GENERAR PDF
-    # ------------------------------------------------------
-    with sync_playwright() as p:
-        browser = p.chromium.launch(args=["--no-sandbox"])
-        page = browser.new_page()
-        page.set_content(html)
-        pdf_bytes = page.pdf(format="A4")
-        browser.close()
-
+    finally:
+        if os.path.exists(output_path):
+            os.remove(output_path)
+            
     return Response(content=pdf_bytes, media_type="application/pdf")
 
 # =========================================================

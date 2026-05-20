@@ -1,0 +1,22 @@
+# Ignorar entornos virtuales
+.venv/
+venv/
+env/
+
+# Ignorar caché de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignorar PDFs generados localmente
+*.pdf
+
+# Ignorar control de versiones y archivos de documentación/pruebas
+.git/
+.gitignore
+guia.md
+correciones.txt
+output.json
+render.yml
+sesion_aprendizaje_template_test.pdf
