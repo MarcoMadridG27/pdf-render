@@ -77,11 +77,23 @@ def map_data(data: dict) -> dict:
     if "evidenciasAprendizaje" in data and isinstance(data["evidenciasAprendizaje"], str) and not new_data.get("evidencia"):
         new_data["evidencia"] = data["evidenciasAprendizaje"]
         
-    if "materialesDidacticosSugeridos" in data and not new_data.get("recursos_materiales"):
-        new_data["recursos_materiales"] = data["materialesDidacticosSugeridos"]
+    if "materialesDidacticosSugeridos" in data and not new_data.get("recursos_materialales"):
+        m = data["materialesDidacticosSugeridos"]
+        if isinstance(m, str):
+            import re
+            items = re.split(r'\n|,|\s*\d+\.\s*', m)
+            new_data["recursos_materiales"] = [s.strip() for s in items if s and s.strip()]
+        elif isinstance(m, list):
+            new_data["recursos_materiales"] = m
 
     if "actividades_previas" in data and not new_data.get("actividades_previas"):
-        new_data["actividades_previas"] = data["actividades_previas"]
+        ap = data["actividades_previas"]
+        if isinstance(ap, list):
+            new_data["actividades_previas"] = ap
+        elif isinstance(ap, str):
+            import re
+            items = re.split(r'\n|\s*\d+\.\s*', ap)
+            new_data["actividades_previas"] = [s.strip() for s in items if s and s.strip()]
     elif "actividadInicial" in data and not new_data.get("actividades_previas"):
         actividad_inicial = data["actividadInicial"]
         if isinstance(actividad_inicial, list):
