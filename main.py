@@ -79,6 +79,15 @@ def map_data(data: dict) -> dict:
         
     if "materialesDidacticosSugeridos" in data and not new_data.get("recursos_materiales"):
         new_data["recursos_materiales"] = data["materialesDidacticosSugeridos"]
+
+    if "actividades_previas" in data and not new_data.get("actividades_previas"):
+        new_data["actividades_previas"] = data["actividades_previas"]
+    elif "actividadInicial" in data and not new_data.get("actividades_previas"):
+        actividad_inicial = data["actividadInicial"]
+        if isinstance(actividad_inicial, list):
+            new_data["actividades_previas"] = actividad_inicial
+        elif actividad_inicial:
+            new_data["actividades_previas"] = [str(actividad_inicial)]
         
     if "secuenciaMetodologica" in data:
         sm = data["secuenciaMetodologica"]
