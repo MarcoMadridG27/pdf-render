@@ -77,7 +77,7 @@ def map_data(data: dict) -> dict:
     if "evidenciasAprendizaje" in data and isinstance(data["evidenciasAprendizaje"], str) and not new_data.get("evidencia"):
         new_data["evidencia"] = data["evidenciasAprendizaje"]
         
-    if "materialesDidacticosSugeridos" in data and not new_data.get("recursos_materialales"):
+    if "materialesDidacticosSugeridos" in data and not new_data.get("recursos_materiales"):
         m = data["materialesDidacticosSugeridos"]
         if isinstance(m, str):
             import re
