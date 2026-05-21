@@ -3,3 +3,4 @@ uvicorn
 playwright
 markdown
 python-multipart
+reportlab
