@@ -109,6 +109,7 @@ def map_data(data: dict) -> dict:
 # GENERAR PDF PRINCIPAL
 # =========================================================
 @app.post("/generate-pdf")
+@app.post("/generate-pdf/")
 def generate_pdf(req: LessonRequest):
     # Map the incoming data in case it's using the old format
     mapped_data = map_data(req.data)
