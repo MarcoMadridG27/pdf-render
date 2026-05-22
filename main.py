@@ -142,10 +142,67 @@ def map_data(data: dict) -> dict:
         if "cierre" in sm and isinstance(sm["cierre"], str) and not new_data.get("cierre"):
             new_data["cierre"] = [{"tipo": "texto", "texto": sm["cierre"]}]
 
+    if "instrumentoEvaluacion" in data and not new_data.get("instrumento"):
+        new_data["instrumento"] = data["instrumentoEvaluacion"]
+
+    # Mapear e inicializar instrumento_evaluacion_generado si no existe o si no coincide con el instrumento seleccionado
+    tipo_inst_form = data.get("instrumentoEvaluacion") or data.get("instrumento") or "Lista de cotejo"
+    if not tipo_inst_form or "IA" in str(tipo_inst_form):
+        tipo_inst_form = "Lista de cotejo"
+
+    existing_inst = None
     if "recursosAdicionales" in data:
         ra = data["recursosAdicionales"]
-        if "instrumentoEvaluacionGenerado" in ra and not new_data.get("instrumento_evaluacion_generado"):
-            new_data["instrumento_evaluacion_generado"] = ra["instrumentoEvaluacionGenerado"]
+        if "instrumentoEvaluacionGenerado" in ra:
+            existing_inst = ra["instrumentoEvaluacionGenerado"]
+            if not new_data.get("instrumento_evaluacion_generado"):
+                new_data["instrumento_evaluacion_generado"] = existing_inst
+
+    current_gen = new_data.get("instrumento_evaluacion_generado")
+    
+    # Si no existe, o si existe pero el tipo cambió con respecto al seleccionado en el formulario, regeneramos
+    if not current_gen or current_gen.get("tipo_instrumento") != tipo_inst_form:
+        # Obtener criterios (preservando los existentes si ya había un instrumento generado)
+        crits = []
+        if current_gen and current_gen.get("criterios_o_items"):
+            crits = current_gen.get("criterios_o_items")
+        else:
+            criteria_raw = data.get("criteriosEvaluacion") or data.get("criterios_evaluacion") or ""
+            if isinstance(criteria_raw, str) and criteria_raw.strip() != "":
+                lines = re.split(r'\n|\r\n', criteria_raw)
+                for line in lines:
+                    cleaned = re.sub(r'^\s*\d+\.\s*', '', line)
+                    cleaned = re.sub(r'^\s*•\s*', '', cleaned).strip()
+                    if cleaned:
+                        crits.append(cleaned)
+            elif isinstance(criteria_raw, list):
+                crits = [str(c).strip() for c in criteria_raw if c]
+                
+        if not crits:
+            crits = [
+                "Identifica y organiza la información relevante del problema.",
+                "Selecciona y ejecuta estrategias de cálculo apropiadas.",
+                "Comunica sus resultados con claridad utilizando lenguaje matemático.",
+                "Reflexiona sobre sus propios errores y aciertos."
+            ]
+            
+        # Determinar escalas
+        scales = ["SÍ", "NO"]
+        tipo_upper = str(tipo_inst_form).upper()
+        if "COTEJO" in tipo_upper:
+            scales = ["SÍ", "NO"]
+        elif "RÚBRICA" in tipo_upper or "RUBRICA" in tipo_upper:
+            scales = ["Inicio", "Proceso", "Logrado", "Destacado"]
+        elif "VALORACIÓN" in tipo_upper or "VALORACION" in tipo_upper:
+            scales = ["Nunca", "A veces", "Siempre"]
+        elif "OBSERVACIÓN" in tipo_upper or "OBSERVACION" in tipo_upper:
+            scales = ["Sí", "No", "En proceso"]
+            
+        new_data["instrumento_evaluacion_generado"] = {
+            "tipo_instrumento": tipo_inst_form,
+            "criterios_o_items": crits,
+            "escalas_o_niveles": scales
+        }
 
     return new_data
 
