@@ -552,7 +552,7 @@ def generate_sesion(data: dict, output_path: str = "sesion_aprendizaje.pdf"):
 
     # BLOQUE 6 (EXTENSIÓN) eliminado: no se incluye actividad de extensión en el PDF
 
-    # ── BLOQUE 7: INSTRUMENTO DE EVALUACIÓN ──────────────────────────────────
+    # ── BLOQUE 6: INSTRUMENTO DE EVALUACIÓN ──────────────────────────────────
     inst_gen = data.get('instrumento_evaluacion_generado')
     if inst_gen:
         tipo_inst = inst_gen.get('tipo_instrumento', 'INSTRUMENTO').upper()
@@ -565,7 +565,7 @@ def generate_sesion(data: dict, output_path: str = "sesion_aprendizaje.pdf"):
             
         def render_instrument(suffix=""):
             elements = []
-            elements.append(section_bar(f"VI.  INSTRUMENTO DE EVALUACIÓN: {tipo_inst}{suffix}", E))
+            elements.append(section_bar(f"V.  INSTRUMENTO DE EVALUACIÓN: {tipo_inst}{suffix}", E))
             elements.append(Spacer(1, 4))
             
             if criterios:
