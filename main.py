@@ -2,6 +2,8 @@ from fastapi import FastAPI, Response, Request, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from datetime import datetime
+import re
 from playwright.sync_api import sync_playwright
 import markdown
 import os
@@ -48,7 +50,23 @@ def map_data(data: dict) -> dict:
         new_data["docente"] = dg.get("docente", new_data.get("docente", ""))
         new_data["grado"] = dg.get("grado", new_data.get("grado", ""))
         new_data["seccion"] = dg.get("seccion", new_data.get("seccion", ""))
-        new_data["fecha"] = dg.get("fecha", new_data.get("fecha", ""))
+        # Normalizar fecha a formato DD/MM/YYYY (Perú)
+        fecha_raw = dg.get("fecha", new_data.get("fecha", ""))
+        if fecha_raw:
+            # ISO-like YYYY-MM-DD
+            m = re.match(r"^(\d{4})-(\d{2})-(\d{2})", str(fecha_raw))
+            if m:
+                new_data["fecha"] = f"{m.group(3)}/{m.group(2)}/{m.group(1)}"
+            else:
+                try:
+                    # Try parsing with datetime
+                    s2 = str(fecha_raw).replace("Z", "+00:00")
+                    dt = datetime.fromisoformat(s2)
+                    new_data["fecha"] = dt.strftime("%d/%m/%Y")
+                except Exception:
+                    new_data["fecha"] = str(fecha_raw)
+        else:
+            new_data["fecha"] = new_data.get("fecha", "")
         new_data["titulo"] = dg.get("titulo", new_data.get("titulo", ""))
 
     if "tema" in data and not new_data.get("titulo"):
@@ -147,7 +165,7 @@ def generate_pdf(req: LessonRequest):
     try:
         # Usar la nueva plantilla de sesión
         generate_sesion(mapped_data, output_path)
-        
+
         with open(output_path, "rb") as f:
             pdf_bytes = f.read()
     except Exception as e:
@@ -164,7 +182,25 @@ def generate_pdf(req: LessonRequest):
         if os.path.exists(output_path):
             os.remove(output_path)
             
-    return Response(content=pdf_bytes, media_type="application/pdf")
+    # Construir un nombre de archivo seguro que incluya la fecha en formato DD-MM-YYYY
+    try:
+        title_raw = mapped_data.get("titulo") or "eduai"
+        safe_title = re.sub(r'[^A-Za-z0-9]+', '-', str(title_raw)).strip('-')[:40]
+        file_date_raw = mapped_data.get("fecha") or ""
+        if file_date_raw:
+            file_date = str(file_date_raw).replace('/', '-')
+        else:
+            file_date = datetime.now().strftime("%d-%m-%Y")
+        filename = f"sesion-{safe_title}-{file_date}.pdf"
+    except Exception:
+        filename = f"sesion-{datetime.now().strftime('%d-%m-%Y')}.pdf"
+
+    headers = {
+        "Content-Disposition": f'attachment; filename="{filename}"',
+        "Access-Control-Allow-Origin": "*",
+    }
+
+    return Response(content=pdf_bytes, media_type="application/pdf", headers=headers)
 
 # =========================================================
 # PDF desde Markdown
