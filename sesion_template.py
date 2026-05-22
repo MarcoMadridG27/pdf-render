@@ -550,20 +550,7 @@ def generate_sesion(data: dict, output_path: str = "sesion_aprendizaje.pdf"):
 
     story.append(Spacer(1, 6))
 
-    # ── BLOQUE 6: ACTIVIDAD DE EXTENSIÓN ─────────────────────────────────────
-    ext_t = Table([
-        [Paragraph("V.  ACTIVIDAD DE EXTENSIÓN (TAREA):", E['field_label']),
-         Paragraph(v('extension'), E['field_value'])],
-    ], colWidths=[5.5*cm, W_PAGE-5.5*cm])
-    ext_t.setStyle(TableStyle([
-        ('VALIGN',(0,0),(-1,-1),'TOP'),
-        ('BACKGROUND',(0,0),(-1,-1), AZUL_PALIDO),
-        ('BOX',(0,0),(-1,-1),0.5, GRIS_LINEA),
-        ('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7),
-        ('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),
-    ]))
-    story.append(ext_t)
-    story.append(Spacer(1, 16))
+    # BLOQUE 6 (EXTENSIÓN) eliminado: no se incluye actividad de extensión en el PDF
 
     # ── BLOQUE 7: INSTRUMENTO DE EVALUACIÓN ──────────────────────────────────
     inst_gen = data.get('instrumento_evaluacion_generado')
