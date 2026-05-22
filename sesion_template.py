@@ -619,37 +619,37 @@ def generate_sesion(data: dict, output_path: str = "sesion_aprendizaje.pdf"):
 
     # ── BLOQUE 8: FIRMAS ─────────────────────────────────────────────────────
     firma_t = Table([[
-        Table([[
-            Paragraph("", E['field_value']),
-            HRFlowable(width=5*cm, thickness=0.8, color=NEGRO),
-            Paragraph(f"<b>{v('docente', 'Docente')}</b>", ParagraphStyle('fn',
+        Table([
+            [Paragraph("", E['field_value'])],
+            [Paragraph(f"<b>{v('docente', 'Docente')}</b>", ParagraphStyle('fn',
                 fontName='Helvetica-Bold', fontSize=9, textColor=NEGRO,
-                leading=12, alignment=TA_CENTER)),
-            Paragraph("Docente del Área", E['footer']),
-        ]], colWidths=[5*cm], style=[
-            ('ALIGN',(0,0),(-1,-1),'CENTER'),
-            ('VALIGN',(0,0),(-1,-1),'MIDDLE'),
-            ('TOPPADDING',(0,0),(-1,-1),3),
-            ('BOTTOMPADDING',(0,0),(-1,-1),3),
+                leading=12, alignment=TA_CENTER))],
+            [Paragraph("Docente del Área", E['footer'])],
+        ], colWidths=[5*cm], rowHeights=[1.2*cm, None, None], style=[
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('LINEABOVE', (0,1), (-1,1), 0.8, NEGRO),
+            ('TOPPADDING', (0,0), (-1,-1), 2),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 2),
         ]),
-        Table([[
-            Paragraph("", E['field_value']),
-            HRFlowable(width=5*cm, thickness=0.8, color=NEGRO),
-            Paragraph("V°B° Director(a)", ParagraphStyle('fn2',
+        Table([
+            [Paragraph("", E['field_value'])],
+            [Paragraph("V°B° Director(a)", ParagraphStyle('fn2',
                 fontName='Helvetica-Bold', fontSize=9, textColor=NEGRO,
-                leading=12, alignment=TA_CENTER)),
-            Paragraph("Dirección I.E.", E['footer']),
-        ]], colWidths=[5*cm], style=[
-            ('ALIGN',(0,0),(-1,-1),'CENTER'),
-            ('VALIGN',(0,0),(-1,-1),'MIDDLE'),
-            ('TOPPADDING',(0,0),(-1,-1),3),
-            ('BOTTOMPADDING',(0,0),(-1,-1),3),
+                leading=12, alignment=TA_CENTER))],
+            [Paragraph("Dirección I.E.", E['footer'])],
+        ], colWidths=[5*cm], rowHeights=[1.2*cm, None, None], style=[
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('LINEABOVE', (0,1), (-1,1), 0.8, NEGRO),
+            ('TOPPADDING', (0,0), (-1,-1), 2),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 2),
         ]),
     ]], colWidths=[W_PAGE/2, W_PAGE/2])
     firma_t.setStyle(TableStyle([
-        ('ALIGN',(0,0),(-1,-1),'CENTER'),
-        ('VALIGN',(0,0),(-1,-1),'BOTTOM'),
-        ('TOPPADDING',(0,0),(-1,-1),20),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('VALIGN', (0,0), (-1,-1), 'BOTTOM'),
+        ('TOPPADDING', (0,0), (-1,-1), 20),
     ]))
     story.append(firma_t)
     story.append(Spacer(1, 12))
