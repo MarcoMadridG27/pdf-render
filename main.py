@@ -2,7 +2,8 @@ from fastapi import FastAPI, Response, Request, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 import re
 from playwright.sync_api import sync_playwright
 import markdown
@@ -55,16 +56,19 @@ def map_data(data: dict) -> dict:
         if fecha_raw:
             # ISO-like YYYY-MM-DD
             m = re.match(r"^(\d{4})-(\d{2})-(\d{2})", str(fecha_raw))
-            if m:
-                new_data["fecha"] = f"{m.group(3)}/{m.group(2)}/{m.group(1)}"
-            else:
-                try:
-                    # Try parsing with datetime
+            try:
+                lima = ZoneInfo("America/Lima")
+                if m:
+                    new_data["fecha"] = f"{m.group(3)}/{m.group(2)}/{m.group(1)}"
+                else:
                     s2 = str(fecha_raw).replace("Z", "+00:00")
                     dt = datetime.fromisoformat(s2)
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    dt = dt.astimezone(lima)
                     new_data["fecha"] = dt.strftime("%d/%m/%Y")
-                except Exception:
-                    new_data["fecha"] = str(fecha_raw)
+            except Exception:
+                new_data["fecha"] = str(fecha_raw)
         else:
             new_data["fecha"] = new_data.get("fecha", "")
         new_data["titulo"] = dg.get("titulo", new_data.get("titulo", ""))
