@@ -92,7 +92,6 @@ def map_data(data: dict) -> dict:
         new_data["competencias"] = [{"competencia": c, "capacidades": data.get("capacidades", [])} for c in data["competenciasSeleccionadas"]]
         
     if "criteriosEvaluacion" in data and isinstance(data["criteriosEvaluacion"], str) and not new_data.get("criterios_evaluacion"):
-        import re
         criterios = re.split(r'\s*\d+\.\s*', data["criteriosEvaluacion"])
         new_data["criterios_evaluacion"] = [c.strip() for c in criterios if c.strip()]
         
@@ -102,7 +101,6 @@ def map_data(data: dict) -> dict:
     if "desempenos" in data and not new_data.get("desempenos"):
         d = data["desempenos"]
         if isinstance(d, str):
-            import re
             items = re.split(r'\n|\s*\d+\.\s*', d)
             new_data["desempenos"] = [s.strip() for s in items if s and s.strip()]
         elif isinstance(d, list):
@@ -116,7 +114,6 @@ def map_data(data: dict) -> dict:
     if "materialesDidacticosSugeridos" in data and not new_data.get("recursos_materiales"):
         m = data["materialesDidacticosSugeridos"]
         if isinstance(m, str):
-            import re
             items = re.split(r'\n|,|\s*\d+\.\s*', m)
             new_data["recursos_materiales"] = [s.strip() for s in items if s and s.strip()]
         elif isinstance(m, list):
@@ -127,7 +124,6 @@ def map_data(data: dict) -> dict:
         if isinstance(ap, list):
             new_data["actividades_previas"] = ap
         elif isinstance(ap, str):
-            import re
             items = re.split(r'\n|\s*\d+\.\s*', ap)
             new_data["actividades_previas"] = [s.strip() for s in items if s and s.strip()]
     elif "actividadInicial" in data and not new_data.get("actividades_previas"):
@@ -158,6 +154,8 @@ def map_data(data: dict) -> dict:
 # =========================================================
 @app.post("/generate-pdf")
 @app.post("/generate-pdf/")
+@app.post("/api/pdf")
+@app.post("/api/pdf/")
 def generate_pdf(req: LessonRequest):
     # Map the incoming data in case it's using the old format
     mapped_data = map_data(req.data)
